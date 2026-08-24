@@ -117,6 +117,55 @@ Pages are progressively loaded in three phases to maximize performance. This pro
 * Lazy - load all other page content, including the header and footer.
 * Delayed - load things that can be safely loaded later here and incur a performance penalty when loaded earlier
 
+## Project-Specific Notes
+
+### NFL+ video & score APIs
+
+The `video-listing` and `scores-block` blocks are powered by **`api.nfl.com`**,
+NFL+'s private, authenticated backend (discovered by inspecting live network
+traffic on `nfl.com/plus`). Full endpoint reference, response shapes, and the
+observed request order are documented in
+[`docs/nfl-plus-video-apis.md`](docs/nfl-plus-video-apis.md) — read it before
+touching either block or adding a new video/score tray.
+
+- Every call needs a bearer token from `POST /identity/v3/token` and is
+  entitlement- and geo-gated; a free/anonymous token only sees free-tier content.
+- `scripts/nfl-api.js` centralizes auth, request building, and response
+  normalization (`fetchVideos`, `fetchScores`). Credentials are read from an
+  EDS config sheet (`/nfl-api-config.json`) — never hardcode them.
+- `SMOKE_TEST_CREDS` in `nfl-api.js` is a **temporary, local-only** override for
+  manual smoke testing. Leave it blank before committing — this repo is public.
+  The durable fix is a server-side token broker, tracked in
+  [issue #1](https://github.com/AdobeDevXSC/nfl-plus/issues/1) per
+  https://www.aem.live/docs/authentication-setup-site.
+
+### DA MCP: creating a sheet vs. a document
+
+Asking the DA MCP to create a file from a plain-language description (e.g. "create
+a redirects file") defaults to an **HTML document**, even when the content is
+tabular. To get a **sheet** instead, call `da_create_source` yourself with:
+- a `path` ending in `.json`
+- `contentType: "application/json"`
+- a body shaped like a DA sheet response, e.g.:
+  ```json
+  {
+    "total": 2, "offset": 0, "limit": 2,
+    "data": [
+      { "Column A": "value", "Column B": "value" },
+      { "Column A": "value", "Column B": "value" }
+    ],
+    ":type": "sheet"
+  }
+  ```
+  Each object in `data` becomes one row; its keys become the sheet's columns.
+
+### DA org/repo for this project
+
+Content for this site lives at `adobedevxsc/nfl-plus` in Document Authoring
+(`da.live/#/adobedevxsc/nfl-plus`). Double-check the `org`/`repo` arguments on
+every DA MCP call — it's easy to instead target a similarly-set-up sibling
+project by mistake.
+
 ## Testing & Quality Assurance
 
 ### Performance
