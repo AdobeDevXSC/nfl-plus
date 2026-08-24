@@ -1,9 +1,84 @@
 /* header and nav layout */
+header .header-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 2;
+}
+
 header .nav-wrapper {
   background-color: var(--background-color);
   width: 100%;
-  z-index: 2;
-  position: fixed;
+}
+
+/* promo banner (authored via the /nav-banner DA doc; omitted when that doc doesn't exist) */
+header .header-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 16px;
+  min-height: var(--banner-height);
+  padding: 8px 16px;
+  background-color: var(--color-plus-primary);
+  color: var(--color-white);
+  font-size: var(--body-font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+header :where(.header-banner) p {
+  margin: 0;
+}
+
+header .header-banner-links {
+  display: none;
+}
+
+header .header-banner-links ul {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+header .header-banner-ctas {
+  display: flex;
+  gap: 8px;
+}
+
+header .header-banner-ctas .button-wrapper {
+  margin: 0;
+}
+
+header .header-banner a.button.primary,
+header .header-banner button.button.primary {
+  border-color: var(--color-white);
+  background-color: var(--color-white);
+  color: var(--color-plus-primary);
+  padding: 0.3em 1em;
+}
+
+header .header-banner a.button.secondary,
+header .header-banner button.button.secondary {
+  border-color: var(--color-white);
+  background-color: transparent;
+  color: var(--color-white);
+  padding: 0.3em 1em;
+}
+
+@media (width >= 600px) {
+  header .header-banner-links {
+    display: block;
+  }
+}
+
+/* scores ticker (auto-inserted, not authored; scrolls with the page between the fixed banner+nav and main) */
+header .header-ticker {
+  width: 100%;
 }
 
 header nav {
@@ -31,10 +106,6 @@ header nav[aria-expanded='true'] {
 }
 
 @media (width >= 900px) {
-  header .nav-wrapper {
-    position: relative;
-  }
-
   header nav {
     display: flex;
     justify-content: space-between;

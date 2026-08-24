@@ -1,4 +1,6 @@
-import { getMetadata } from '../../scripts/aem.js';
+import {
+  getMetadata, buildBlock, decorateBlock, loadBlock,
+} from '../../scripts/aem.js';
 import { loadFragment } from '../fragment/fragment.js';
 
 // media query match that indicates mobile/tablet width
@@ -109,14 +111,57 @@ function toggleMenu(nav, navSections, forceExpanded = null) {
 }
 
 /**
- * loads and decorates the header, mainly the nav
+ * Builds the promo banner from the `/nav-banner` fragment (3 divs: message, links, ctas).
+ * Mirrors how nav's own divs are mapped by position below.
+ * @param {Element} fragment The loaded banner fragment, or null if it doesn't exist
+ * @returns {Element|null}
+ */
+function buildBanner(fragment) {
+  if (!fragment) return null;
+  const banner = document.createElement('div');
+  banner.className = 'header-banner';
+  ['message', 'links', 'ctas'].forEach((c, i) => {
+    const section = fragment.children[i];
+    if (section) {
+      section.classList.add(`header-banner-${c}`);
+      banner.append(section);
+    }
+  });
+  return banner;
+}
+
+/**
+ * Auto-inserts the scores ticker (no authoring required) using the same
+ * buildBlock/decorateBlock/loadBlock utilities the header block itself is loaded with.
+ * Passing no config rows means `fetchScores` falls back to the current week.
+ * @returns {Promise<Element>} a wrapper containing the loaded scores-block
+ */
+async function buildScoresTicker() {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'header-ticker';
+  const ticker = buildBlock('scores-block', []);
+  wrapper.append(ticker);
+  decorateBlock(ticker);
+  await loadBlock(ticker);
+  return wrapper;
+}
+
+/**
+ * loads and decorates the header: promo banner, scores ticker, and nav
  * @param {Element} block The header block element
  */
 export default async function decorate(block) {
-  // load nav as fragment
+  // load nav + banner as fragments, and build the scores ticker, all in parallel
   const navMeta = getMetadata('nav');
   const navPath = navMeta ? new URL(navMeta, window.location).pathname : '/nav';
-  const fragment = await loadFragment(navPath);
+  const bannerMeta = getMetadata('nav-banner');
+  const bannerPath = bannerMeta ? new URL(bannerMeta, window.location).pathname : '/nav-banner';
+
+  const [fragment, bannerFragment, ticker] = await Promise.all([
+    loadFragment(navPath),
+    loadFragment(bannerPath).catch(() => null),
+    buildScoresTicker(),
+  ]);
 
   // decorate nav DOM
   block.textContent = '';
@@ -167,5 +212,22 @@ export default async function decorate(block) {
   const navWrapper = document.createElement('div');
   navWrapper.className = 'nav-wrapper';
   navWrapper.append(nav);
-  block.append(navWrapper);
+
+  // banner + nav are pinned together; the ticker stays in normal flow between them,
+  // so its top margin has to reserve exactly the fixed stack's height. That height
+  // isn't a fixed constant: authored banner copy wraps differently per breakpoint,
+  // so it's measured live rather than assumed via a static value.
+  const banner = buildBanner(bannerFragment);
+  const headerFixed = document.createElement('div');
+  headerFixed.className = 'header-fixed';
+  if (banner) headerFixed.append(banner);
+  headerFixed.append(navWrapper);
+
+  block.append(headerFixed, ticker);
+
+  const syncTickerOffset = () => {
+    ticker.style.marginTop = `${headerFixed.getBoundingClientRect().height}px`;
+  };
+  syncTickerOffset();
+  new ResizeObserver(syncTickerOffset).observe(headerFixed);
 }

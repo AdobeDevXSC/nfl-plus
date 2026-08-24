@@ -114,6 +114,7 @@
 
   /* nav height */
   --nav-height: 64px;
+  --banner-height: 40px;
 }
 
 @media (width >= 900px) {
@@ -145,10 +146,6 @@ body {
 
 body.appear {
   display: block;
-}
-
-header {
-  height: var(--nav-height);
 }
 
 header .header,
