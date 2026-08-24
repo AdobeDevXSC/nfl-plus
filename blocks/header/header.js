@@ -213,21 +213,23 @@ export default async function decorate(block) {
   navWrapper.className = 'nav-wrapper';
   navWrapper.append(nav);
 
-  // banner + nav are pinned together; the ticker stays in normal flow between them,
-  // so its top margin has to reserve exactly the fixed stack's height. That height
-  // isn't a fixed constant: authored banner copy wraps differently per breakpoint,
-  // so it's measured live rather than assumed via a static value.
+  // Visual order is banner, ticker, nav. Banner and nav are independently
+  // `position: sticky` (both stick to the top), so at rest they read top-to-bottom
+  // as authored, and once scrolled past, nav settles in right below the pinned
+  // banner while the ticker (normal flow, never sticky) scrolls away. Nav's sticky
+  // offset has to equal the banner's real height, which isn't a fixed constant
+  // (authored banner copy wraps differently per breakpoint), so it's measured live.
   const banner = buildBanner(bannerFragment);
-  const headerFixed = document.createElement('div');
-  headerFixed.className = 'header-fixed';
-  if (banner) headerFixed.append(banner);
-  headerFixed.append(navWrapper);
+  if (banner) block.append(banner);
+  block.append(ticker, navWrapper);
 
-  block.append(headerFixed, ticker);
-
-  const syncTickerOffset = () => {
-    ticker.style.marginTop = `${headerFixed.getBoundingClientRect().height}px`;
+  const syncNavOffset = () => {
+    navWrapper.style.top = banner ? `${banner.getBoundingClientRect().height}px` : '0';
   };
-  syncTickerOffset();
-  new ResizeObserver(syncTickerOffset).observe(headerFixed);
+  if (banner) {
+    syncNavOffset();
+    new ResizeObserver(syncNavOffset).observe(banner);
+  } else {
+    navWrapper.style.top = '0';
+  }
 }
