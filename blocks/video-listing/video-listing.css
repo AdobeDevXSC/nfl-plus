@@ -1,0 +1,86 @@
+.video-listing {
+  margin: 24px 0;
+}
+
+.video-listing .video-listing-heading {
+  margin: 0 0 16px;
+  font-size: 22px;
+}
+
+.video-listing .video-listing-tray {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 78%;
+  gap: 16px;
+  padding-bottom: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.video-listing .video-listing-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  scroll-snap-align: start;
+}
+
+.video-listing .video-listing-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #16181f;
+}
+
+.video-listing .video-listing-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.25s ease;
+}
+
+.video-listing a.video-listing-card:hover .video-listing-thumb img,
+.video-listing a.video-listing-card:focus-visible .video-listing-thumb img {
+  transform: scale(1.05);
+}
+
+.video-listing a.video-listing-card:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 3px;
+}
+
+.video-listing .video-listing-duration {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 80%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.video-listing .video-listing-title {
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.video-listing .video-listing-status {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.video-listing .video-listing-error {
+  color: #b91c1c;
+}
+
+@media (width >= 600px) {
+  .video-listing .video-listing-tray {
+    grid-auto-columns: 300px;
+  }
+}
