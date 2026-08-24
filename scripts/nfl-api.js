@@ -8,6 +8,7 @@
 const API_BASE_DEFAULT = 'https://api.nfl.com';
 const CONFIG_PATH = '/nfl-api-config.json';
 const THUMB_TX = 'w_640,h_360,c_fill,f_auto,q_auto';
+const LOGO_TX = 'f_auto,h_32,dpr_2.0,q_auto,w_32';
 
 // ⚠️ TEMPORARY smoke-test override — DO NOT COMMIT real values (this repo is public).
 // Leave blank to read credentials from the /nfl-api-config sheet. Replace this whole
@@ -90,6 +91,25 @@ function normalize(item) {
   };
 }
 
+/** GET /football/v2/experience/weekly-game-details, returns its raw array of games. */
+async function fetchWeeklyGameDetails(base, headers, {
+  season, seasonType, week, includeReplays,
+}) {
+  const qs = new URLSearchParams({
+    includeDriveChart: 'false',
+    includeReplays: includeReplays ? 'true' : 'false',
+    includeStandings: 'true',
+    includeTaggedVideos: 'false',
+    season: season || '',
+    type: seasonType || '',
+    week: week || '',
+  });
+  const res = await fetch(`${base}/football/v2/experience/weekly-game-details?${qs}`, { headers });
+  if (!res.ok) throw new Error(`weekly-game-details request ${res.status}`);
+  const games = await res.json();
+  return Array.isArray(games) ? games : [];
+}
+
 /**
  * weekly-game-details returns an array of games, each carrying its own
  * .replays[] (when includeReplays=true). Flatten to one list, optionally
@@ -165,19 +185,10 @@ async function fetchVideos({
 
   // weekly-game-details returns an array of games, not an items/data.items envelope.
   if (source === 'replays') {
-    const qs = new URLSearchParams({
-      includeDriveChart: 'false',
-      includeReplays: 'true',
-      includeStandings: 'true',
-      includeTaggedVideos: 'false',
-      season: season || '',
-      type: seasonType || '',
-      week: week || '',
+    const games = await fetchWeeklyGameDetails(base, headers, {
+      season, seasonType, week, includeReplays: true,
     });
-    const res = await fetch(`${base}/football/v2/experience/weekly-game-details?${qs}`, { headers });
-    if (!res.ok) throw new Error(`replays request ${res.status}`);
-    const games = await res.json();
-    const items = flattenReplays(Array.isArray(games) ? games : [], subType);
+    const items = flattenReplays(games, subType);
     return items.slice(0, limit).map(normalize);
   }
 
@@ -201,6 +212,69 @@ async function fetchVideos({
   let items = json.items || json.data?.items || [];
   if (network) items = items.filter((i) => (i.callSign || i.network) === network);
   return items.slice(0, limit).map(normalize);
+}
+
+function teamAbbrFromLogo(url) {
+  return (url || '').split('/').pop() || '';
+}
+
+const teamsCache = new Map();
+
+/** Fetch (and cache) the season's teams, keyed by id, for canonical abbreviations. */
+async function getTeamAbbrMap(base, headers, season) {
+  if (!teamsCache.has(season)) {
+    teamsCache.set(season, fetch(`${base}/experience/v1/teams?season=${encodeURIComponent(season)}`, { headers })
+      .then((r) => { if (!r.ok) throw new Error(`teams ${r.status}`); return r.json(); })
+      .then((json) => new Map((json.teams || []).map((t) => [t.id, t.abbreviation])))
+      .catch((e) => { teamsCache.delete(season); throw e; }));
+  }
+  return teamsCache.get(season);
+}
+
+function normalizeTeam(team, summaryTeam, abbrMap) {
+  return {
+    abbr: abbrMap?.get(team?.id) || teamAbbrFromLogo(team?.currentLogo),
+    name: team?.fullName || '',
+    logo: (team?.currentLogo || '').replace('{formatInstructions}', LOGO_TX),
+    score: summaryTeam?.score?.total ?? null,
+    hasPossession: !!summaryTeam?.hasPossession,
+  };
+}
+
+/** Reduce a weekly-game-details game to the fields a scoreboard card needs. */
+function normalizeGame(game, abbrMap) {
+  const s = game.summary || {};
+  return {
+    id: game.id || s.gameId,
+    away: normalizeTeam(game.awayTeam, s.awayTeam, abbrMap),
+    home: normalizeTeam(game.homeTeam, s.homeTeam, abbrMap),
+    phase: s.phase || game.status || 'SCHEDULED',
+    quarter: s.quarter || null,
+    clock: s.clock || null,
+    startTime: game.time || s.startTime || null,
+  };
+}
+
+/**
+ * Fetch a normalized scoreboard for a week.
+ * @param {object} opts
+ * @param {string} opts.season      e.g. "2026"
+ * @param {string} opts.seasonType  PRE|REG|POST
+ * @param {string} opts.week        e.g. "2"
+ * @returns {Promise<Array<{id,away,home,phase,quarter,clock,startTime}>>}
+ */
+export async function fetchScores({ season, seasonType, week } = {}) {
+  const cfg = await getConfig();
+  const base = cfg.apiBase || API_BASE_DEFAULT;
+  const token = await getToken();
+  const headers = { authorization: `Bearer ${token}` };
+  const [games, abbrMap] = await Promise.all([
+    fetchWeeklyGameDetails(base, headers, {
+      season, seasonType, week, includeReplays: false,
+    }),
+    getTeamAbbrMap(base, headers, season).catch(() => null),
+  ]);
+  return games.map((game) => normalizeGame(game, abbrMap));
 }
 
 export default fetchVideos;
