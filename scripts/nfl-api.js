@@ -255,12 +255,20 @@ function normalizeGame(game, abbrMap) {
   };
 }
 
+/** GET /football/v2/weeks/date/{yyyy-mm-dd}, resolves the current season/type/week. */
+async function fetchCurrentWeek(base, headers) {
+  const today = new Date().toISOString().slice(0, 10);
+  const res = await fetch(`${base}/football/v2/weeks/date/${today}`, { headers });
+  if (!res.ok) throw new Error(`weeks/date request ${res.status}`);
+  return res.json();
+}
+
 /**
  * Fetch a normalized scoreboard for a week.
  * @param {object} opts
- * @param {string} opts.season      e.g. "2026"
- * @param {string} opts.seasonType  PRE|REG|POST
- * @param {string} opts.week        e.g. "2"
+ * @param {string} [opts.season]      e.g. "2026"; all three omitted resolves the current week
+ * @param {string} [opts.seasonType]  PRE|REG|POST
+ * @param {string} [opts.week]        e.g. "2"
  * @returns {Promise<Array<{id,away,home,phase,quarter,clock,startTime}>>}
  */
 export async function fetchScores({ season, seasonType, week } = {}) {
@@ -268,11 +276,25 @@ export async function fetchScores({ season, seasonType, week } = {}) {
   const base = cfg.apiBase || API_BASE_DEFAULT;
   const token = await getToken();
   const headers = { authorization: `Bearer ${token}` };
+
+  let resolvedSeason = season;
+  let resolvedSeasonType = seasonType;
+  let resolvedWeek = week;
+  if (!season && !seasonType && !week) {
+    const current = await fetchCurrentWeek(base, headers);
+    resolvedSeason = current.season;
+    resolvedSeasonType = current.seasonType;
+    resolvedWeek = current.week;
+  }
+
   const [games, abbrMap] = await Promise.all([
     fetchWeeklyGameDetails(base, headers, {
-      season, seasonType, week, includeReplays: false,
+      season: resolvedSeason,
+      seasonType: resolvedSeasonType,
+      week: resolvedWeek,
+      includeReplays: false,
     }),
-    getTeamAbbrMap(base, headers, season).catch(() => null),
+    getTeamAbbrMap(base, headers, resolvedSeason).catch(() => null),
   ]);
   return games.map((game) => normalizeGame(game, abbrMap));
 }
