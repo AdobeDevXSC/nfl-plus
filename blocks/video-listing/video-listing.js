@@ -58,13 +58,6 @@ export default async function decorate(block) {
   block.textContent = '';
   block.dataset.source = source;
 
-  if (cfg.heading) {
-    const heading = document.createElement('h2');
-    heading.className = 'video-listing-heading';
-    heading.textContent = cfg.heading;
-    block.append(heading);
-  }
-
   const tray = document.createElement('div');
   tray.className = 'video-listing-tray';
   tray.setAttribute('role', 'list');
