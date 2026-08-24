@@ -2,11 +2,6 @@
   margin: 24px 0;
 }
 
-.video-listing .video-listing-heading {
-  margin: 0 0 16px;
-  font-size: 22px;
-}
-
 .video-listing .video-listing-tray {
   display: grid;
   grid-auto-flow: column;
