@@ -83,6 +83,10 @@ export default async function decorate(block) {
       network: cfg.network,
       experienceId: cfg['experience id'],
       shelf: cfg.shelf,
+      season: cfg.season,
+      seasonType: cfg['season type'],
+      week: cfg.week,
+      subType: cfg['sub type'],
       limit,
     });
 

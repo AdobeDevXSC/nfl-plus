@@ -84,10 +84,31 @@ function normalize(item) {
   return {
     id: item.id,
     title: item.title || item.displayTitle || item.mobileTitle || 'Untitled',
-    duration: item.duration || 0,
+    duration: Number(item.duration) || 0,
     thumb: thumbFrom(item),
     link: item.webLink || item.mobileLink || '',
   };
+}
+
+/**
+ * weekly-game-details returns an array of games, each carrying its own
+ * .replays[] (when includeReplays=true). Flatten to one list, optionally
+ * filtered by subType (e.g. "Full Game", "Condensed Game", "All-22"), and
+ * label each replay with its matchup since the raw title/subType alone
+ * ("Fútbol Americano NFL") isn't a useful card title on its own.
+ */
+function flattenReplays(games, subType) {
+  const items = [];
+  games.forEach((game) => {
+    const replays = Array.isArray(game.replays) ? game.replays : [];
+    replays.forEach((replay) => {
+      if (subType && replay.subType !== subType) return;
+      const away = game.awayTeam?.fullName || 'Away';
+      const home = game.homeTeam?.fullName || 'Home';
+      items.push({ ...replay, title: `${away} @ ${home} — ${replay.subType || 'Replay'}` });
+    });
+  });
+  return items;
 }
 
 const experienceCache = new Map();
@@ -105,17 +126,22 @@ async function getExperience(base, id, headers) {
 /**
  * Fetch a normalized list of videos for a given source.
  * @param {object} opts
- * @param {'episodes'|'clips'|'livestreams'|'experience'} opts.source
+ * @param {'episodes'|'clips'|'livestreams'|'experience'|'replays'} opts.source
  * @param {string} [opts.series]        seriesTitle (episodes)
  * @param {string} [opts.clipType]      clipType (clips)
  * @param {string} [opts.network]       network callsign (livestreams)
  * @param {string} [opts.experienceId]  experience id (experience)
  * @param {string} [opts.shelf]         shelf/tray name to select from an experience
+ * @param {string} [opts.season]        e.g. "2026" (replays)
+ * @param {string} [opts.seasonType]    PRE|REG|POST (replays)
+ * @param {string} [opts.week]          e.g. "2" (replays)
+ * @param {string} [opts.subType]       e.g. "Full Game" (replays, optional filter)
  * @param {number} [opts.limit]         max cards
  * @returns {Promise<Array<{id,title,duration,thumb,link}>>}
  */
 async function fetchVideos({
-  source = 'episodes', series, clipType, network, experienceId, shelf, limit = 12,
+  source = 'episodes', series, clipType, network, experienceId, shelf,
+  season, seasonType, week, subType, limit = 12,
 } = {}) {
   const cfg = await getConfig();
   const base = cfg.apiBase || API_BASE_DEFAULT;
@@ -135,6 +161,24 @@ async function fetchVideos({
     }
     node = node || nodes.find(populated);
     return (node?.data.items || []).slice(0, limit).map(normalize);
+  }
+
+  // weekly-game-details returns an array of games, not an items/data.items envelope.
+  if (source === 'replays') {
+    const qs = new URLSearchParams({
+      includeDriveChart: 'false',
+      includeReplays: 'true',
+      includeStandings: 'true',
+      includeTaggedVideos: 'false',
+      season: season || '',
+      type: seasonType || '',
+      week: week || '',
+    });
+    const res = await fetch(`${base}/football/v2/experience/weekly-game-details?${qs}`, { headers });
+    if (!res.ok) throw new Error(`replays request ${res.status}`);
+    const games = await res.json();
+    const items = flattenReplays(Array.isArray(games) ? games : [], subType);
+    return items.slice(0, limit).map(normalize);
   }
 
   let url;
