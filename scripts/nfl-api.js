@@ -277,4 +277,79 @@ export async function fetchScores({ season, seasonType, week } = {}) {
   return games.map((game) => normalizeGame(game, abbrMap));
 }
 
+const CONTENT_PRIORITY = {
+  GAME: 0,
+  SPORTSEVENT: 1,
+  PREGAMESHOW: 2,
+  POSTGAMESHOW: 2,
+  'SPORTSNON-EVENT': 3,
+};
+
+function contentPriority(contentType) {
+  return CONTENT_PRIORITY[contentType] ?? 4;
+}
+
+/** Collapse duplicate rows for the same matchup/window, keeping the one with an image. */
+function dedupeByMatchup(items) {
+  const byKey = new Map();
+  items.forEach((item) => {
+    const key = `${item.title}|${item.startTime}|${item.endTime}`;
+    const existing = byKey.get(key);
+    if (!existing || (!existing.preferredImage && item.preferredImage)) {
+      byKey.set(key, item);
+    }
+  });
+  return [...byKey.values()];
+}
+
+/**
+ * Pick the single best livestream item to feature: the currently-live
+ * broadcast (a GAME outranks a studio show that's also live, then earliest
+ * start wins), or failing that the soonest upcoming item. Returns null when
+ * nothing qualifies (e.g. off-season, or everything filtered out).
+ * @param {Array<object>} items raw items from /experience/v1/livestreams
+ * @param {object} [opts]
+ * @param {Date} [opts.now] override "now" for testing
+ * @param {string} [opts.network] restrict to one callSign, e.g. "NFLN"
+ * @returns {{state: 'live'|'upcoming', title: string, network: string,
+ *   image: string|null, startTime: string, endTime: string}|null}
+ */
+export function selectLiveNow(items, { now = new Date(), network } = {}) {
+  const candidates = dedupeByMatchup(
+    items.filter((item) => item.streamType === 'primary'
+      && item.contentType && item.contentType !== 'AUDIO'
+      && (!network || item.callSign === network)),
+  );
+
+  const nowMs = now.getTime();
+  const live = [];
+  const upcoming = [];
+  candidates.forEach((item) => {
+    const start = new Date(item.startTime).getTime();
+    const end = new Date(item.endTime).getTime();
+    if (start <= nowMs && nowMs <= end) live.push(item);
+    else if (start > nowMs) upcoming.push(item);
+  });
+
+  const byPriorityThenTime = (a, b) => {
+    const diff = contentPriority(a.contentType) - contentPriority(b.contentType);
+    return diff !== 0 ? diff : new Date(a.startTime) - new Date(b.startTime);
+  };
+
+  const picked = live.length
+    ? [...live].sort(byPriorityThenTime)[0]
+    : [...upcoming].sort(byPriorityThenTime)[0];
+
+  if (!picked) return null;
+
+  return {
+    state: live.length ? 'live' : 'upcoming',
+    title: picked.title,
+    network: picked.callSign,
+    image: picked.preferredImage || null,
+    startTime: picked.startTime,
+    endTime: picked.endTime,
+  };
+}
+
 export default fetchVideos;
