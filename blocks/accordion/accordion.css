@@ -1,5 +1,5 @@
 .accordion details {
-  border: 1px solid #dadada;
+  border: 1px solid var(--border-color);
 }
 
 /* stylelint-disable-next-line no-descending-specificity */
@@ -56,6 +56,6 @@
 }
 
 .accordion details[open] .accordion-item-body {
-  border-top: 1px solid #dadada;
+  border-top: 1px solid var(--border-color);
   background-color: var(--background-color);
 }
