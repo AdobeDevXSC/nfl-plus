@@ -59,6 +59,7 @@
   --text-color: var(--color-text);
   --link-color: var(--color-plus-350);
   --link-hover-color: var(--color-plus-50);
+  --border-color: var(--color-ds-200);
 
   /* ===== typography ===== */
   --font-sans: 'All-ProSans', helvetica, arial, sans-serif;

@@ -63,7 +63,7 @@
 .form input[readonly],
 .form textarea[readonly],
 .form select[readonly] {
-  border-color: #d1d1d1;
+  border-color: var(--border-color);
   background-color: var(--light-color);
   color: var(--dark-color);
 }
@@ -186,8 +186,8 @@
 }
 
 .form .form-field.toggle-field label input:disabled + span {
-  border-color: #d1d1d1;
-  background-color: #d1d1d1;
+  border-color: var(--border-color);
+  background-color: var(--border-color);
   cursor: default;
 }
 
