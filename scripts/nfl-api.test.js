@@ -1,6 +1,7 @@
+/* global globalThis */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectLiveNow } from './nfl-api.js';
+import { selectLiveNow, fetchLiveNow } from './nfl-api.js';
 
 function item(overrides = {}) {
   return {
@@ -92,4 +93,56 @@ test('restricts candidates to the given network', () => {
   ];
   const result = selectLiveNow(items, { now: NOW, network: 'NFLRZ' });
   assert.equal(result.title, 'On RedZone');
+});
+
+test('fetchLiveNow authenticates, requests livestreams, and returns the selected item', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  try {
+    const now = new Date();
+    const startTime = new Date(now.getTime() - 60 * 60 * 1000).toISOString(); // 1 hour ago
+    const endTime = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString(); // 2 hours from now
+
+    globalThis.fetch = async (url, init) => {
+      const href = String(url);
+      calls.push({ href, init });
+      if (href.endsWith('/nfl-api-config.json')) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: [
+              { key: 'clientKey', value: 'test-key' },
+              { key: 'clientSecret', value: 'test-secret' },
+            ],
+          }),
+        };
+      }
+      if (href.includes('/identity/v3/token')) {
+        return { ok: true, json: async () => ({ accessToken: 'test-token' }) };
+      }
+      if (href.includes('/experience/v1/livestreams')) {
+        return {
+          ok: true,
+          json: async () => ({
+            data: {
+              items: [item({
+                title: 'Test Game',
+                startTime,
+                endTime,
+              })],
+            },
+          }),
+        };
+      }
+      throw new Error(`unexpected fetch: ${href}`);
+    };
+
+    const result = await fetchLiveNow();
+
+    assert.equal(result.title, 'Test Game');
+    const liveCall = calls.find((c) => c.href.includes('/experience/v1/livestreams'));
+    assert.equal(liveCall.init.headers.authorization, 'Bearer test-token');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

@@ -352,4 +352,23 @@ export function selectLiveNow(items, { now = new Date(), network } = {}) {
   };
 }
 
+/**
+ * Fetch the single livestream item to feature right now: the currently-live
+ * broadcast, or the next upcoming one if nothing is live.
+ * @param {object} [opts]
+ * @param {string} [opts.network] restrict to one callSign, e.g. "NFLN"
+ * @returns {Promise<ReturnType<typeof selectLiveNow>>}
+ */
+export async function fetchLiveNow({ network } = {}) {
+  const cfg = await getConfig();
+  const base = cfg.apiBase || API_BASE_DEFAULT;
+  const token = await getToken();
+  const headers = { authorization: `Bearer ${token}` };
+  const res = await fetch(`${base}/experience/v1/livestreams`, { headers });
+  if (!res.ok) throw new Error(`livestreams request ${res.status}`);
+  const json = await res.json();
+  const items = json.data?.items || json.items || [];
+  return selectLiveNow(items, { network });
+}
+
 export default fetchVideos;
