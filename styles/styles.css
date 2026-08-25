@@ -83,7 +83,7 @@
   --text-2xl: 1.5rem;
 
   /* body sizes (mobile-first) */
-  --body-font-size-m: 17px;
+  --body-font-size-m: 14px;
   --body-font-size-s: 15px;
   --body-font-size-xs: 13px;
 
@@ -120,7 +120,7 @@
 @media (width >= 900px) {
   :root {
     /* body sizes */
-    --body-font-size-m: 18px;
+    --body-font-size-m: 14px;
     --body-font-size-s: 16px;
     --body-font-size-xs: 14px;
 
@@ -249,7 +249,7 @@ button.button {
   max-width: 100%;
   margin: 0;
   border: 2px solid transparent;
-  border-radius: 2.4em;
+  border-radius: 4px;
   padding: 0.5em 1.2em;
   font: inherit;
   font-weight: var(--font-weight-medium);
