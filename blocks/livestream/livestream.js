@@ -1,19 +1,17 @@
 import { fetchLiveNow } from '../../scripts/nfl-api.js';
 
-// Per-network branding used for the info-bar's color panel and as the text
-// label when no authored network-logo image is present. Authors provide the
-// actual logo as the block's second image (see decorate()); this map only
-// supplies the fallback name/color.
-const NETWORK_INFO = {
-  NFLNETWORK: { name: 'NFL Network', color: 'var(--color-nfl-primary)' },
-  NFLN: { name: 'NFL Network', color: 'var(--color-nfl-primary)' },
-  NFLRZ: { name: 'NFL RedZone', color: 'var(--color-nfl-secondary)' },
-  REDZONE: { name: 'NFL RedZone', color: 'var(--color-nfl-secondary)' },
+// Fallback network display name, used only when the author hasn't provided
+// the second (network-panel) image yet. The real branding (color + logo)
+// normally comes baked into that authored image, not from this map.
+const NETWORK_NAMES = {
+  NFLNETWORK: 'NFL Network',
+  NFLN: 'NFL Network',
+  NFLRZ: 'NFL RedZone',
+  REDZONE: 'NFL RedZone',
 };
 
-function networkInfo(callSign) {
-  return NETWORK_INFO[(callSign || '').toUpperCase()]
-    || { name: callSign || '', color: 'var(--color-nfl-primary)' };
+function networkName(callSign) {
+  return NETWORK_NAMES[(callSign || '').toUpperCase()] || callSign || '';
 }
 
 /** Read the block's key/value config rows into a lowercased-key object. */
@@ -40,7 +38,7 @@ function formatTimeRange(startIso, endIso) {
 
 function renderResult(elements, result) {
   const {
-    badge, eyebrow, title, time, networkPanel, networkName,
+    badge, eyebrow, title, time, networkFallback,
   } = elements;
 
   const label = result.state === 'live' ? 'On Now' : 'Up Next';
@@ -49,15 +47,14 @@ function renderResult(elements, result) {
   title.textContent = result.title;
   time.textContent = formatTimeRange(result.startTime, result.endTime);
 
-  const info = networkInfo(result.network);
-  networkPanel.style.backgroundColor = info.color;
-  networkName.textContent = info.name;
+  if (networkFallback) networkFallback.textContent = networkName(result.network);
 }
 
 /**
  * Loads and decorates the block. Authors provide two images (in this order):
- * a full-bleed background picture, then a network-logo picture. Both are
- * reused as-is (not rebuilt) to keep their responsive <source>/webp markup.
+ * a full-bleed background picture, then a network-panel picture (the
+ * network's branded color/logo, already composited into one image). Both
+ * are reused as-is (not rebuilt) to keep their responsive webp/png markup.
  * The livestreams fetch is intentionally not awaited before this function
  * returns: this block can land in the page's first (eager) section, and
  * eager-phase block loading is awaited before the rest of the page
@@ -67,7 +64,7 @@ function renderResult(elements, result) {
  */
 export default async function decorate(block) {
   const cfg = readConfig(block);
-  const [bgPicture, logoPicture] = block.querySelectorAll('picture');
+  const [bgPicture, networkPicture] = block.querySelectorAll('picture');
 
   block.textContent = '';
 
@@ -78,17 +75,6 @@ export default async function decorate(block) {
   plusBadge.className = 'livestream-plus-badge';
   plusBadge.src = '/media/icons/badge-access-nflplus.png';
   plusBadge.alt = 'NFL+';
-
-  const networkName = document.createElement('span');
-  networkName.className = 'livestream-network-name';
-
-  const networkPanel = document.createElement('div');
-  networkPanel.className = 'livestream-network';
-  if (logoPicture) {
-    logoPicture.classList.add('livestream-network-logo');
-    networkPanel.append(logoPicture);
-  }
-  networkPanel.append(networkName);
 
   const eyebrow = document.createElement('p');
   eyebrow.className = 'livestream-eyebrow';
@@ -105,7 +91,17 @@ export default async function decorate(block) {
 
   const infoBar = document.createElement('div');
   infoBar.className = 'livestream-info-bar';
-  infoBar.append(networkPanel, details);
+
+  let networkFallback;
+  if (networkPicture) {
+    networkPicture.classList.add('livestream-network-panel');
+    infoBar.append(networkPicture);
+  } else {
+    networkFallback = document.createElement('span');
+    networkFallback.className = 'livestream-network-fallback';
+    infoBar.append(networkFallback);
+  }
+  infoBar.append(details);
 
   block.append(badge, plusBadge, infoBar);
   if (bgPicture) {
@@ -120,7 +116,7 @@ export default async function decorate(block) {
         return;
       }
       renderResult({
-        badge, eyebrow, title, time, networkPanel, networkName,
+        badge, eyebrow, title, time, networkFallback,
       }, result);
       if (!bgPicture && result.image) {
         const img = document.createElement('img');
