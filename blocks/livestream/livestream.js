@@ -1,10 +1,9 @@
 import { fetchLiveNow } from '../../scripts/nfl-api.js';
 
-const PLUS_BADGE_SRC = '/media/icons/badge-access-nflplus.png';
-
-// Per-network branding. Logos live at /icons/networks/{slug}.svg — drop the
-// real asset in at that path and it appears automatically; until then the
-// network name renders as styled text on its brand-color panel.
+// Per-network branding used for the info-bar's color panel and as the text
+// label when no authored network-logo image is present. Authors provide the
+// actual logo as the block's second image (see decorate()); this map only
+// supplies the fallback name/color.
 const NETWORK_INFO = {
   NFLNETWORK: { name: 'NFL Network', color: 'var(--color-nfl-primary)' },
   NFLN: { name: 'NFL Network', color: 'var(--color-nfl-primary)' },
@@ -13,13 +12,8 @@ const NETWORK_INFO = {
 };
 
 function networkInfo(callSign) {
-  const known = NETWORK_INFO[(callSign || '').toUpperCase()];
-  if (known) return known;
-  return { name: callSign || '', color: 'var(--color-nfl-primary)' };
-}
-
-function networkLogoSlug(callSign) {
-  return (callSign || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return NETWORK_INFO[(callSign || '').toUpperCase()]
+    || { name: callSign || '', color: 'var(--color-nfl-primary)' };
 }
 
 /** Read the block's key/value config rows into a lowercased-key object. */
@@ -44,9 +38,9 @@ function formatTimeRange(startIso, endIso) {
   return [startText, endText].filter(Boolean).join(' - ');
 }
 
-function renderResult(block, elements, result) {
+function renderResult(elements, result) {
   const {
-    badge, eyebrow, title, time, networkPanel, networkLogo, networkName,
+    badge, eyebrow, title, time, networkPanel, networkName,
   } = elements;
 
   const label = result.state === 'live' ? 'On Now' : 'Up Next';
@@ -58,31 +52,23 @@ function renderResult(block, elements, result) {
   const info = networkInfo(result.network);
   networkPanel.style.backgroundColor = info.color;
   networkName.textContent = info.name;
-  networkLogo.src = `/icons/networks/${networkLogoSlug(result.network)}.svg`;
-  networkLogo.alt = '';
-  networkLogo.hidden = false;
-  networkLogo.addEventListener('error', () => { networkLogo.hidden = true; }, { once: true });
-
-  if (result.image) {
-    const img = document.createElement('img');
-    img.className = 'livestream-bg';
-    img.loading = 'lazy';
-    img.alt = '';
-    img.src = result.image;
-    block.prepend(img);
-  }
 }
 
 /**
- * Loads and decorates the block. The livestreams fetch is intentionally not
- * awaited before this function returns: this block can land in the page's
- * first (eager) section, and eager-phase block loading is awaited before the
- * rest of the page (header/footer/lazy CSS) starts loading — so blocking
- * here on an authenticated network round trip would delay the whole page.
+ * Loads and decorates the block. Authors provide two images (in this order):
+ * a full-bleed background picture, then a network-logo picture. Both are
+ * reused as-is (not rebuilt) to keep their responsive <source>/webp markup.
+ * The livestreams fetch is intentionally not awaited before this function
+ * returns: this block can land in the page's first (eager) section, and
+ * eager-phase block loading is awaited before the rest of the page
+ * (header/footer/lazy CSS) starts loading — so blocking here on an
+ * authenticated network round trip would delay the whole page.
  * @param {Element} block The block element
  */
 export default async function decorate(block) {
   const cfg = readConfig(block);
+  const [bgPicture, logoPicture] = block.querySelectorAll('picture');
+
   block.textContent = '';
 
   const badge = document.createElement('span');
@@ -90,20 +76,19 @@ export default async function decorate(block) {
 
   const plusBadge = document.createElement('img');
   plusBadge.className = 'livestream-plus-badge';
-  plusBadge.src = PLUS_BADGE_SRC;
+  plusBadge.src = '/media/icons/badge-access-nflplus.png';
   plusBadge.alt = 'NFL+';
-
-  const networkLogo = document.createElement('img');
-  networkLogo.className = 'livestream-network-logo';
-  networkLogo.loading = 'lazy';
-  networkLogo.hidden = true;
 
   const networkName = document.createElement('span');
   networkName.className = 'livestream-network-name';
 
   const networkPanel = document.createElement('div');
   networkPanel.className = 'livestream-network';
-  networkPanel.append(networkLogo, networkName);
+  if (logoPicture) {
+    logoPicture.classList.add('livestream-network-logo');
+    networkPanel.append(logoPicture);
+  }
+  networkPanel.append(networkName);
 
   const eyebrow = document.createElement('p');
   eyebrow.className = 'livestream-eyebrow';
@@ -123,6 +108,10 @@ export default async function decorate(block) {
   infoBar.append(networkPanel, details);
 
   block.append(badge, plusBadge, infoBar);
+  if (bgPicture) {
+    bgPicture.classList.add('livestream-bg');
+    block.prepend(bgPicture);
+  }
 
   fetchLiveNow({ network: cfg.network })
     .then((result) => {
@@ -130,9 +119,17 @@ export default async function decorate(block) {
         block.remove();
         return;
       }
-      renderResult(block, {
-        badge, eyebrow, title, time, networkPanel, networkLogo, networkName,
+      renderResult({
+        badge, eyebrow, title, time, networkPanel, networkName,
       }, result);
+      if (!bgPicture && result.image) {
+        const img = document.createElement('img');
+        img.className = 'livestream-bg';
+        img.loading = 'lazy';
+        img.alt = '';
+        img.src = result.image;
+        block.prepend(img);
+      }
     })
     .catch((e) => {
       // eslint-disable-next-line no-console
