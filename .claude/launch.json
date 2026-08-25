@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "aem-dev",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "@adobe/aem-cli", "up", "--no-open", "--forward-browser-logs"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}
