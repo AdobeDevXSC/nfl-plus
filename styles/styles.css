@@ -393,3 +393,49 @@ main .section.highlight {
   margin: 0;
   padding: 40px 0;
 }
+
+main .section.logo-header {
+  margin: 0;
+  padding: 24px;
+  background-color: var(--color-black);
+}
+
+main .section.logo-header > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 4px;
+}
+
+main .section.logo-header img {
+  display: block;
+  width: 40px;
+  height: 40px;
+}
+
+main .section.logo-header h2 {
+  margin: 0;
+  color: var(--color-white);
+}
+
+main .section.logo-header p {
+  margin: 0;
+}
+
+main .section.logo-header p:last-of-type {
+  flex-basis: 100%;
+  color: var(--color-text);
+  font-size: var(--text-base);
+}
+
+@media (width >= 600px) {
+  main .section.logo-header {
+    padding: 32px;
+  }
+
+  main .section.logo-header img {
+    width: 54px;
+    height: 54px;
+  }
+}
