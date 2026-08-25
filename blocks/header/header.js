@@ -120,11 +120,15 @@ function buildBanner(fragment) {
   if (!fragment) return null;
   const banner = document.createElement('div');
   banner.className = 'header-banner';
+  const inner = document.createElement('div');
+  inner.className = 'header-banner-inner';
+  banner.append(inner);
+  const sections = [...fragment.children];
   ['message', 'links', 'ctas'].forEach((c, i) => {
-    const section = fragment.children[i];
+    const section = sections[i];
     if (section) {
       section.classList.add(`header-banner-${c}`);
-      banner.append(section);
+      inner.append(section);
     }
   });
   return banner;

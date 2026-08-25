@@ -11,11 +11,6 @@ header .header-banner {
   position: sticky;
   top: 0;
   z-index: 3;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px 16px;
   min-height: var(--banner-height);
   padding: 8px 16px;
   background-color: var(--color-plus-primary);
@@ -26,8 +21,25 @@ header .header-banner {
   text-transform: uppercase;
 }
 
+header .header-banner-inner {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px 16px;
+  max-width: 81rem;
+  margin: auto;
+}
+
 header :where(.header-banner) p {
   margin: 0;
+}
+
+header .header-banner-message {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 header .header-banner-links {
@@ -40,10 +52,16 @@ header .header-banner-links ul {
   margin: 0;
   padding: 0;
   list-style: none;
+  white-space: nowrap;
 }
 
 header .header-banner-ctas {
+  flex: none;
+}
+
+header .header-banner-ctas .default-content-wrapper {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -119,6 +137,10 @@ header nav p {
 
 header nav a:any-link {
   color: currentcolor;
+}
+
+header .header-banner-links a:any-link {
+  color: inherit;
 }
 
 /* hamburger */
