@@ -55,6 +55,7 @@
   z-index: 1;
   inset: auto 16px 16px;
   display: flex;
+  height: 96px;
   overflow: hidden;
   border-radius: 8px;
   background-color: var(--color-ds-level-2);
@@ -113,6 +114,10 @@
 @media (width >= 900px) {
   .livestream {
     min-height: 420px;
+  }
+
+  .livestream .livestream-info-bar {
+    height: 108px;
   }
 
   .livestream .livestream-network-panel,
