@@ -414,10 +414,9 @@ main .section.logo-header > div > p:first-of-type {
   margin: 0;
 }
 
-main .section.logo-header img {
+main .section.logo-header p img {
   display: block;
   width: auto;
-  height: 48px;
 }
 
 main .section.logo-header h2 {
@@ -440,7 +439,7 @@ main .section.logo-header p:last-of-type {
     padding: 32px;
   }
 
-  main .section.logo-header img {
+  main .section.logo-header p img {
     height: 64px;
   }
 }
