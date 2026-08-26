@@ -334,7 +334,7 @@ function dedupeByMatchup(items) {
  * @param {Date} [opts.now] override "now" for testing
  * @param {string} [opts.network] restrict to one callSign, e.g. "NFLN"
  * @returns {{state: 'live'|'upcoming', title: string, network: string,
- *   image: string|null, startTime: string, endTime: string}|null}
+ *   image: string|null, link: string, startTime: string, endTime: string}|null}
  */
 export function selectLiveNow(items, { now = new Date(), network } = {}) {
   const candidates = dedupeByMatchup(
@@ -369,6 +369,7 @@ export function selectLiveNow(items, { now = new Date(), network } = {}) {
     title: picked.title,
     network: picked.callSign,
     image: picked.preferredImage || null,
+    link: picked.webLink || picked.mobileLink || '',
     startTime: picked.startTime,
     endTime: picked.endTime,
   };

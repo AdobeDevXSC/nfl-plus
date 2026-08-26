@@ -404,8 +404,7 @@ main .section.logo-header > .default-content-wrapper {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
-  column-gap: 16px;
-  row-gap: 4px;
+  gap: 4px 16px;
 }
 
 main .section.logo-header > .default-content-wrapper > p:first-of-type {

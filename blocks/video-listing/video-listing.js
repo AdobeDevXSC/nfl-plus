@@ -37,6 +37,14 @@ function buildCard(item) {
     img.alt = '';
     thumb.append(img);
   }
+  if (item.link) {
+    const watchCta = document.createElement('span');
+    watchCta.className = 'video-listing-watch-cta';
+    watchCta.setAttribute('aria-hidden', 'true');
+    watchCta.innerHTML = '<span class="video-listing-watch-icon"></span>Watch with NFL+';
+    thumb.append(watchCta);
+  }
+
   const duration = document.createElement('span');
   duration.className = 'video-listing-duration';
   duration.textContent = formatDuration(item.duration);
