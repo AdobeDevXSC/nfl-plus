@@ -397,7 +397,7 @@ main .section.highlight {
 main .section.logo-header {
   margin: 0;
   padding: 24px;
-  background-color: var(--color-black);
+  background-color: var(--background-color);
 }
 
 main .section.logo-header > .default-content-wrapper {
