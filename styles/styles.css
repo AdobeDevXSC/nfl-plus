@@ -400,7 +400,7 @@ main .section.logo-header {
   background-color: var(--color-black);
 }
 
-main .section.logo-header > div {
+main .section.logo-header > .default-content-wrapper {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
@@ -408,25 +408,25 @@ main .section.logo-header > div {
   row-gap: 4px;
 }
 
-main .section.logo-header > div > p:first-of-type {
+main .section.logo-header > .default-content-wrapper > p:first-of-type {
   grid-column: 1;
   grid-row: 1 / 3;
   margin: 0;
 }
 
-main .section.logo-header p img {
+main .section.logo-header > .default-content-wrapper p img {
   display: block;
   width: auto;
 }
 
-main .section.logo-header h2 {
+main .section.logo-header > .default-content-wrapper h2 {
   grid-column: 2;
   grid-row: 1;
   margin: 0;
   color: var(--color-white);
 }
 
-main .section.logo-header p:last-of-type {
+main .section.logo-header > .default-content-wrapper p:last-of-type {
   grid-column: 2;
   grid-row: 2;
   margin: 0;
@@ -439,7 +439,7 @@ main .section.logo-header p:last-of-type {
     padding: 32px;
   }
 
-  main .section.logo-header p img {
+  main .section.logo-header > .default-content-wrapper p img {
     height: 64px;
   }
 }
