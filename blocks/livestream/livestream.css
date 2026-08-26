@@ -50,6 +50,44 @@
   width: auto;
 }
 
+.livestream .livestream-watch-cta {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transform: translate(-50%, -50%);
+  transition: opacity var(--transition-duration) var(--ease-in-out);
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 100px;
+  background-color: var(--color-plus-primary);
+  padding: 14px 24px;
+  color: var(--color-white);
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.livestream:hover .livestream-watch-cta,
+.livestream:focus-within .livestream-watch-cta {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.livestream .livestream-watch-icon {
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 6px 0 6px 10px;
+  border-color: transparent transparent transparent var(--color-white);
+}
+
 .livestream .livestream-info-bar {
   position: absolute;
   z-index: 1;

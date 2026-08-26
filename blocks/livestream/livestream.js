@@ -14,6 +14,9 @@ function networkName(callSign) {
   return NETWORK_NAMES[(callSign || '').toUpperCase()] || callSign || '';
 }
 
+// Fallback destination when the live item has no direct watch link.
+const SUBSCRIBE_URL = 'https://id.nfl.com/select-subscription?redirecturl=https%3A%2F%2Fwww.nfl.com%2Fplus%2F&signinpages=checkout&signuppages=checkout%2Cfavoriteteam';
+
 /** Read the block's key/value config rows into a lowercased-key object. */
 function readConfig(block) {
   const cfg = {};
@@ -103,7 +106,12 @@ export default async function decorate(block) {
   }
   infoBar.append(details);
 
-  block.append(badge, plusBadge, infoBar);
+  const watchCta = document.createElement('a');
+  watchCta.className = 'livestream-watch-cta';
+  watchCta.href = SUBSCRIBE_URL;
+  watchCta.innerHTML = '<span class="livestream-watch-icon" aria-hidden="true"></span>Watch with NFL+';
+
+  block.append(badge, plusBadge, watchCta, infoBar);
   if (bgPicture) {
     bgPicture.classList.add('livestream-bg');
     block.prepend(bgPicture);
@@ -118,6 +126,7 @@ export default async function decorate(block) {
       renderResult({
         badge, eyebrow, title, time, networkFallback,
       }, result);
+      if (result.link) watchCta.href = result.link;
       if (!bgPicture && result.image) {
         const img = document.createElement('img');
         img.className = 'livestream-bg';
