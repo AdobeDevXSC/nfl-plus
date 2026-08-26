@@ -115,6 +115,11 @@
   /* nav height */
   --nav-height: 64px;
   --banner-height: 40px;
+
+  /* header's rendered height (promo banner + scores ticker + nav), measured
+     at rest -- reserved below so the lazy-loaded header block doesn't shift
+     page content down once it's decorated */
+  --header-reserved-height: 198px;
 }
 
 @media (width >= 900px) {
@@ -146,6 +151,10 @@ body {
 
 body.appear {
   display: block;
+}
+
+body > header {
+  min-height: var(--header-reserved-height);
 }
 
 header .header,
