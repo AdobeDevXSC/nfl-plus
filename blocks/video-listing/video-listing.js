@@ -1,4 +1,12 @@
 import fetchVideos from '../../scripts/nfl-api.js';
+import {
+  recordClick, rankByAffinity, recordPremiumInterest, getPreferredTeam,
+} from '../../scripts/video-affinity.js';
+
+const SUBSCRIBE_URL = 'https://id.nfl.com/select-subscription?redirecturl=https%3A%2F%2Fwww.nfl.com%2Fplus%2F&signinpages=checkout&signuppages=checkout%2Cfavoriteteam';
+// Re-surface the upsell every Nth distinct Premium video, not on every click — most of
+// the catalog is Premium-gated, so per-click nagging would fire on nearly everything.
+const PREMIUM_UPSELL_EVERY = 3;
 
 /** Read the block's key/value config rows into a lowercased-key object. */
 function readConfig(block) {
@@ -19,13 +27,17 @@ function formatDuration(seconds) {
   return `${m}:${String(s % 60).padStart(2, '0')}`;
 }
 
-function buildCard(item) {
+function buildCard(item, onSelect) {
   const card = document.createElement(item.link ? 'a' : 'div');
   card.className = 'video-listing-card';
   card.setAttribute('role', 'listitem');
   if (item.link) {
     card.href = item.link;
     card.setAttribute('aria-label', item.title);
+    card.addEventListener('click', (event) => {
+      event.preventDefault();
+      onSelect(item);
+    });
   }
 
   const thumb = document.createElement('div');
@@ -56,13 +68,72 @@ function buildCard(item) {
   return card;
 }
 
+/** Show a self-dismissing toast, reusing one element per block. */
+function makeToast(block) {
+  const toast = document.createElement('div');
+  toast.className = 'video-listing-toast';
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  block.append(toast);
+
+  let hideTimer;
+  return (html, { modifierClass, duration = 1600 } = {}) => {
+    clearTimeout(hideTimer);
+    toast.innerHTML = html;
+    toast.className = ['video-listing-toast', modifierClass].filter(Boolean).join(' ');
+    toast.classList.add('video-listing-toast-visible');
+    hideTimer = setTimeout(() => toast.classList.remove('video-listing-toast-visible'), duration);
+  };
+}
+
+function isPremiumGated(item) {
+  return !!item.entitlement && item.entitlement.toLowerCase() !== 'free';
+}
+
+/**
+ * A block authored with `Personalize: team` swaps its configured content for
+ * that visitor's favorite-team replays once one is set (see scores-block's
+ * team picker) — falling back to its normally-authored content for anyone
+ * who hasn't picked a team yet, so the page still looks complete by default.
+ */
+function personalizedFetchArgs(cfg, limit) {
+  if ((cfg.personalize || '').toLowerCase() !== 'team') return null;
+  const team = getPreferredTeam();
+  if (!team) return null;
+  return { source: 'replays', team, limit };
+}
+
 export default async function decorate(block) {
   const cfg = readConfig(block);
-  const source = (cfg.source || 'episodes').toLowerCase();
+  const personalized = personalizedFetchArgs(cfg, parseInt(cfg.limit, 10) || 12);
+  const source = personalized ? 'replays' : (cfg.source || 'episodes').toLowerCase();
   const limit = parseInt(cfg.limit, 10) || 12;
 
   block.textContent = '';
   block.dataset.source = source;
+
+  if (personalized) {
+    const label = document.createElement('p');
+    label.className = 'video-listing-personalized-label';
+    label.textContent = `Personalized for ${personalized.team} fans`;
+    block.append(label);
+  }
+
+  const showToast = makeToast(block);
+  const onSelect = (item) => {
+    recordClick(item);
+    if (isPremiumGated(item)) {
+      const { count, wasNew } = recordPremiumInterest(item);
+      if (wasNew && count % PREMIUM_UPSELL_EVERY === 0) {
+        showToast(
+          `You've explored ${count} Premium videos — <a href="${SUBSCRIBE_URL}">Unlock NFL+ Premium</a>`,
+          { modifierClass: 'video-listing-toast-upsell', duration: 5000 },
+        );
+        return;
+      }
+    }
+    showToast('Interest Recorded');
+  };
 
   const tray = document.createElement('div');
   tray.className = 'video-listing-tray';
@@ -75,7 +146,7 @@ export default async function decorate(block) {
   block.append(tray, status);
 
   try {
-    const items = await fetchVideos({
+    const items = await fetchVideos(personalized || {
       source,
       series: cfg.series,
       clipType: cfg['clip type'],
@@ -94,7 +165,7 @@ export default async function decorate(block) {
       return;
     }
 
-    items.forEach((item) => tray.append(buildCard(item)));
+    rankByAffinity(items).forEach((item) => tray.append(buildCard(item, onSelect)));
     status.remove();
   } catch (e) {
     status.classList.add('video-listing-error');

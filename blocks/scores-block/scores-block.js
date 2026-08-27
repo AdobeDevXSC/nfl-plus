@@ -1,4 +1,5 @@
 import { fetchScores } from '../../scripts/nfl-api.js';
+import { setPreferredTeam, getPreferredTeam, teamScore } from '../../scripts/video-affinity.js';
 
 /** Read the block's key/value config rows into a lowercased-key object. */
 function readConfig(block) {
@@ -37,10 +38,11 @@ function formatStatus(game) {
   return [quarter, game.clock].filter(Boolean).join(' ');
 }
 
-function buildTeamRow(team, live) {
+function buildTeamRow(team, live, onPick) {
   const row = document.createElement('div');
   row.className = 'scores-block-team';
   if (live && team.hasPossession) row.classList.add('has-possession');
+  if (team.name && team.name === getPreferredTeam()) row.classList.add('is-preferred');
 
   if (team.logo) {
     const img = document.createElement('img');
@@ -59,16 +61,31 @@ function buildTeamRow(team, live) {
   score.textContent = team.score ?? '';
 
   row.append(abbr, score);
+
+  // Tap a team to set it as a favorite-team signal — reorders games/videos toward
+  // it immediately, rather than waiting for enough incidental clicks to accumulate.
+  if (team.name) {
+    row.setAttribute('role', 'button');
+    row.tabIndex = 0;
+    row.setAttribute('aria-label', `Set ${team.name} as your favorite team`);
+    row.addEventListener('click', () => onPick(team.name));
+    row.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      onPick(team.name);
+    });
+  }
+
   return row;
 }
 
-function buildTile(game) {
+function buildTile(game, onPick) {
   const tile = document.createElement('div');
   tile.className = 'scores-block-tile';
   tile.setAttribute('role', 'listitem');
 
   const live = game.phase !== 'FINAL' && game.phase !== 'SCHEDULED';
-  tile.append(buildTeamRow(game.away, live), buildTeamRow(game.home, live));
+  tile.append(buildTeamRow(game.away, live, onPick), buildTeamRow(game.home, live, onPick));
 
   const status = document.createElement('div');
   status.className = 'scores-block-tile-status';
@@ -76,6 +93,33 @@ function buildTile(game) {
   tile.append(status);
 
   return tile;
+}
+
+/** Show a self-dismissing toast, reusing one element per block. */
+function makeToast(block) {
+  const toast = document.createElement('div');
+  toast.className = 'scores-block-toast';
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  block.append(toast);
+
+  let hideTimer;
+  return (text) => {
+    clearTimeout(hideTimer);
+    toast.textContent = text;
+    toast.classList.add('scores-block-toast-visible');
+    hideTimer = setTimeout(() => toast.classList.remove('scores-block-toast-visible'), 1800);
+  };
+}
+
+/** Sort games so whichever team a visitor has affinity for (organic or picked) leads. */
+function sortByTeamAffinity(games) {
+  return games
+    .map((game, index) => ({
+      game, index, score: Math.max(teamScore(game.away.name), teamScore(game.home.name)),
+    }))
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map(({ game }) => game);
 }
 
 export default async function decorate(block) {
@@ -93,6 +137,18 @@ export default async function decorate(block) {
 
   block.append(tray, status);
 
+  const showToast = makeToast(block);
+
+  function render(games) {
+    tray.textContent = '';
+    const onPick = (teamName) => {
+      setPreferredTeam(teamName);
+      showToast(`Team preference saved: ${teamName}`);
+      render(games);
+    };
+    sortByTeamAffinity(games).forEach((game) => tray.append(buildTile(game, onPick)));
+  }
+
   try {
     const games = await fetchScores({
       season: cfg.season,
@@ -105,7 +161,7 @@ export default async function decorate(block) {
       return;
     }
 
-    games.forEach((game) => tray.append(buildTile(game)));
+    render(games);
     status.remove();
   } catch (e) {
     status.classList.add('scores-block-error');

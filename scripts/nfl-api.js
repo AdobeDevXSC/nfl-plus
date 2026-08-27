@@ -80,14 +80,36 @@ function thumbFrom(item) {
   return url.replace('{formatInstructions}', THUMB_TX);
 }
 
+/** Content signals for client-side affinity ranking (see scripts/video-affinity.js). */
+function extractSignals(item, extra = []) {
+  const signals = [...extra];
+  // Curated "experience" shelf items nest this under `series.title` rather than the flat
+  // `seriesTitle` field the episodes/clips endpoints use — check both shapes.
+  const seriesTitle = item.seriesTitle || item.series?.title;
+  if (seriesTitle) signals.push(`series:${seriesTitle}`);
+  if (item.clipType) signals.push(`clipType:${item.clipType}`);
+  if (item.subType) signals.push(`subType:${item.subType}`);
+  if (item.callSign || item.network) signals.push(`network:${item.callSign || item.network}`);
+  if (Array.isArray(item.tags)) {
+    item.tags.forEach((t) => {
+      const tag = typeof t === 'string' ? t : (t?.name || t?.title);
+      if (tag) signals.push(`tag:${tag}`);
+    });
+  }
+  return signals;
+}
+
 /** Reduce an item from any source to the common card shape. */
-function normalize(item) {
+function normalize(item, extraSignals) {
   return {
-    id: item.id,
+    // Some replay items carry a null top-level `id` but a populated `externalId`.
+    id: item.id || item.externalId || null,
     title: item.title || item.displayTitle || item.mobileTitle || 'Untitled',
     duration: Number(item.duration) || 0,
     thumb: thumbFrom(item),
     link: item.webLink || item.mobileLink || '',
+    entitlement: item.entitlement || null,
+    signals: extractSignals(item, extraSignals),
   };
 }
 
@@ -117,18 +139,34 @@ async function fetchWeeklyGameDetails(base, headers, {
  * label each replay with its matchup since the raw title/subType alone
  * ("Fútbol Americano NFL") isn't a useful card title on its own.
  */
-function flattenReplays(games, subType) {
+function flattenReplays(games, subType, team) {
   const items = [];
   games.forEach((game) => {
+    const away = game.awayTeam?.fullName || 'Away';
+    const home = game.homeTeam?.fullName || 'Home';
+    if (team && away !== team && home !== team) return;
     const replays = Array.isArray(game.replays) ? game.replays : [];
     replays.forEach((replay) => {
       if (subType && replay.subType !== subType) return;
-      const away = game.awayTeam?.fullName || 'Away';
-      const home = game.homeTeam?.fullName || 'Home';
-      items.push({ ...replay, title: `${away} @ ${home} — ${replay.subType || 'Replay'}` });
+      items.push({
+        ...replay,
+        title: `${away} @ ${home} — ${replay.subType || 'Replay'}`,
+        matchupTeams: [away, home],
+      });
     });
   });
   return items;
+}
+
+/**
+ * GET /football/v2/weeks/latest-replays, resolves the most recent week that
+ * actually has replay video (the "current" week by date usually doesn't yet —
+ * games haven't been played, so weekly-game-details returns zero replays).
+ */
+async function fetchLatestReplaysWeek(base, headers) {
+  const res = await fetch(`${base}/football/v2/weeks/latest-replays`, { headers });
+  if (!res.ok) throw new Error(`weeks/latest-replays request ${res.status}`);
+  return res.json();
 }
 
 const experienceCache = new Map();
@@ -152,16 +190,20 @@ async function getExperience(base, id, headers) {
  * @param {string} [opts.network]       network callsign (livestreams)
  * @param {string} [opts.experienceId]  experience id (experience)
  * @param {string} [opts.shelf]         shelf/tray name to select from an experience
- * @param {string} [opts.season]        e.g. "2026" (replays)
+ * @param {string} [opts.season]        e.g. "2026" (replays; all three omitted
+ *   resolves the latest week that actually has replay video)
  * @param {string} [opts.seasonType]    PRE|REG|POST (replays)
  * @param {string} [opts.week]          e.g. "2" (replays)
  * @param {string} [opts.subType]       e.g. "Full Game" (replays, optional filter)
+ * @param {string} [opts.team]          full team name, e.g. "Denver Broncos" (replays,
+ *   optional filter to only that team's games)
  * @param {number} [opts.limit]         max cards
- * @returns {Promise<Array<{id,title,duration,thumb,link}>>}
+ * @returns {Promise<Array<{id,title,duration,thumb,link,signals:string[],
+ *   entitlement:string|null}>>}
  */
 async function fetchVideos({
   source = 'episodes', series, clipType, network, experienceId, shelf,
-  season, seasonType, week, subType, limit = 12,
+  season, seasonType, week, subType, team, limit = 12,
 } = {}) {
   const cfg = await getConfig();
   const base = cfg.apiBase || API_BASE_DEFAULT;
@@ -175,21 +217,35 @@ async function fetchVideos({
     const populated = (n) => Array.isArray(n.data?.items) && n.data.items.length;
     let node;
     if (shelf) {
-      const needle = shelf.toLowerCase();
-      node = nodes.find((n) => populated(n)
-        && (n.displayName || n.name || '').toLowerCase().includes(needle));
+      // Shelf names carry punctuation ("NFL+ Throwback") that doesn't necessarily
+      // match how an author types it ("NFL Throwback") — compare on letters/digits
+      // only so a "+" or extra whitespace doesn't silently fall through to the
+      // wrong (first-populated) shelf below.
+      const shelfKey = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const needle = shelfKey(shelf);
+      node = nodes.find((n) => populated(n) && shelfKey(n.displayName || n.name).includes(needle));
+      if (!node) {
+        // eslint-disable-next-line no-console
+        console.warn(`video-listing: no shelf matching "${shelf}" — falling back to the first populated shelf.`);
+      }
     }
     node = node || nodes.find(populated);
-    return (node?.data.items || []).slice(0, limit).map(normalize);
+    return (node?.data.items || []).slice(0, limit).map((item) => normalize(item));
   }
 
   // weekly-game-details returns an array of games, not an items/data.items envelope.
   if (source === 'replays') {
+    let resolvedWeek = { season, seasonType, week };
+    if (!season && !seasonType && !week) {
+      const latest = await fetchLatestReplaysWeek(base, headers);
+      resolvedWeek = { season: latest.season, seasonType: latest.seasonType, week: latest.week };
+    }
     const games = await fetchWeeklyGameDetails(base, headers, {
-      season, seasonType, week, includeReplays: true,
+      ...resolvedWeek, includeReplays: true,
     });
-    const items = flattenReplays(games, subType);
-    return items.slice(0, limit).map(normalize);
+    const items = flattenReplays(games, subType, team);
+    return items.slice(0, limit)
+      .map((item) => normalize(item, item.matchupTeams?.map((t) => `team:${t}`)));
   }
 
   let url;
@@ -211,7 +267,7 @@ async function fetchVideos({
   const json = await res.json();
   let items = json.items || json.data?.items || [];
   if (network) items = items.filter((i) => (i.callSign || i.network) === network);
-  return items.slice(0, limit).map(normalize);
+  return items.slice(0, limit).map((item) => normalize(item));
 }
 
 function teamAbbrFromLogo(url) {
