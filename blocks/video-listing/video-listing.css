@@ -11,6 +11,15 @@
   color: var(--color-white);
 }
 
+.video-listing .video-listing-personalized-label {
+  margin: 0 0 12px;
+  color: var(--color-plus-350);
+  font-size: 13px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+}
+
 .video-listing .video-listing-tray {
   display: grid;
   grid-auto-flow: column;

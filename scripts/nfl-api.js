@@ -102,7 +102,8 @@ function extractSignals(item, extra = []) {
 /** Reduce an item from any source to the common card shape. */
 function normalize(item, extraSignals) {
   return {
-    id: item.id,
+    // Some replay items carry a null top-level `id` but a populated `externalId`.
+    id: item.id || item.externalId || null,
     title: item.title || item.displayTitle || item.mobileTitle || 'Untitled',
     duration: Number(item.duration) || 0,
     thumb: thumbFrom(item),
@@ -138,14 +139,15 @@ async function fetchWeeklyGameDetails(base, headers, {
  * label each replay with its matchup since the raw title/subType alone
  * ("Fútbol Americano NFL") isn't a useful card title on its own.
  */
-function flattenReplays(games, subType) {
+function flattenReplays(games, subType, team) {
   const items = [];
   games.forEach((game) => {
+    const away = game.awayTeam?.fullName || 'Away';
+    const home = game.homeTeam?.fullName || 'Home';
+    if (team && away !== team && home !== team) return;
     const replays = Array.isArray(game.replays) ? game.replays : [];
     replays.forEach((replay) => {
       if (subType && replay.subType !== subType) return;
-      const away = game.awayTeam?.fullName || 'Away';
-      const home = game.homeTeam?.fullName || 'Home';
       items.push({
         ...replay,
         title: `${away} @ ${home} — ${replay.subType || 'Replay'}`,
@@ -154,6 +156,17 @@ function flattenReplays(games, subType) {
     });
   });
   return items;
+}
+
+/**
+ * GET /football/v2/weeks/latest-replays, resolves the most recent week that
+ * actually has replay video (the "current" week by date usually doesn't yet —
+ * games haven't been played, so weekly-game-details returns zero replays).
+ */
+async function fetchLatestReplaysWeek(base, headers) {
+  const res = await fetch(`${base}/football/v2/weeks/latest-replays`, { headers });
+  if (!res.ok) throw new Error(`weeks/latest-replays request ${res.status}`);
+  return res.json();
 }
 
 const experienceCache = new Map();
@@ -177,17 +190,20 @@ async function getExperience(base, id, headers) {
  * @param {string} [opts.network]       network callsign (livestreams)
  * @param {string} [opts.experienceId]  experience id (experience)
  * @param {string} [opts.shelf]         shelf/tray name to select from an experience
- * @param {string} [opts.season]        e.g. "2026" (replays)
+ * @param {string} [opts.season]        e.g. "2026" (replays; all three omitted
+ *   resolves the latest week that actually has replay video)
  * @param {string} [opts.seasonType]    PRE|REG|POST (replays)
  * @param {string} [opts.week]          e.g. "2" (replays)
  * @param {string} [opts.subType]       e.g. "Full Game" (replays, optional filter)
+ * @param {string} [opts.team]          full team name, e.g. "Denver Broncos" (replays,
+ *   optional filter to only that team's games)
  * @param {number} [opts.limit]         max cards
  * @returns {Promise<Array<{id,title,duration,thumb,link,signals:string[],
  *   entitlement:string|null}>>}
  */
 async function fetchVideos({
   source = 'episodes', series, clipType, network, experienceId, shelf,
-  season, seasonType, week, subType, limit = 12,
+  season, seasonType, week, subType, team, limit = 12,
 } = {}) {
   const cfg = await getConfig();
   const base = cfg.apiBase || API_BASE_DEFAULT;
@@ -219,10 +235,15 @@ async function fetchVideos({
 
   // weekly-game-details returns an array of games, not an items/data.items envelope.
   if (source === 'replays') {
+    let resolvedWeek = { season, seasonType, week };
+    if (!season && !seasonType && !week) {
+      const latest = await fetchLatestReplaysWeek(base, headers);
+      resolvedWeek = { season: latest.season, seasonType: latest.seasonType, week: latest.week };
+    }
     const games = await fetchWeeklyGameDetails(base, headers, {
-      season, seasonType, week, includeReplays: true,
+      ...resolvedWeek, includeReplays: true,
     });
-    const items = flattenReplays(games, subType);
+    const items = flattenReplays(games, subType, team);
     return items.slice(0, limit)
       .map((item) => normalize(item, item.matchupTeams?.map((t) => `team:${t}`)));
   }

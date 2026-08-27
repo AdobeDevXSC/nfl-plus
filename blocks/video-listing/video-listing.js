@@ -1,5 +1,7 @@
 import fetchVideos from '../../scripts/nfl-api.js';
-import { recordClick, rankByAffinity, recordPremiumInterest } from '../../scripts/video-affinity.js';
+import {
+  recordClick, rankByAffinity, recordPremiumInterest, getPreferredTeam,
+} from '../../scripts/video-affinity.js';
 
 const SUBSCRIBE_URL = 'https://id.nfl.com/select-subscription?redirecturl=https%3A%2F%2Fwww.nfl.com%2Fplus%2F&signinpages=checkout&signuppages=checkout%2Cfavoriteteam';
 // Re-surface the upsell every Nth distinct Premium video, not on every click — most of
@@ -88,13 +90,34 @@ function isPremiumGated(item) {
   return !!item.entitlement && item.entitlement.toLowerCase() !== 'free';
 }
 
+/**
+ * A block authored with `Personalize: team` swaps its configured content for
+ * that visitor's favorite-team replays once one is set (see scores-block's
+ * team picker) — falling back to its normally-authored content for anyone
+ * who hasn't picked a team yet, so the page still looks complete by default.
+ */
+function personalizedFetchArgs(cfg, limit) {
+  if ((cfg.personalize || '').toLowerCase() !== 'team') return null;
+  const team = getPreferredTeam();
+  if (!team) return null;
+  return { source: 'replays', team, limit };
+}
+
 export default async function decorate(block) {
   const cfg = readConfig(block);
-  const source = (cfg.source || 'episodes').toLowerCase();
+  const personalized = personalizedFetchArgs(cfg, parseInt(cfg.limit, 10) || 12);
+  const source = personalized ? 'replays' : (cfg.source || 'episodes').toLowerCase();
   const limit = parseInt(cfg.limit, 10) || 12;
 
   block.textContent = '';
   block.dataset.source = source;
+
+  if (personalized) {
+    const label = document.createElement('p');
+    label.className = 'video-listing-personalized-label';
+    label.textContent = `Personalized for ${personalized.team} fans`;
+    block.append(label);
+  }
 
   const showToast = makeToast(block);
   const onSelect = (item) => {
@@ -123,7 +146,7 @@ export default async function decorate(block) {
   block.append(tray, status);
 
   try {
-    const items = await fetchVideos({
+    const items = await fetchVideos(personalized || {
       source,
       series: cfg.series,
       clipType: cfg['clip type'],
