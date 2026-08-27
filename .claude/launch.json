@@ -4,7 +4,7 @@
     {
       "name": "aem-dev",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["-y", "@adobe/aem-cli", "up", "--no-open", "--forward-browser-logs"],
+      "runtimeArgs": ["-y", "@adobe/aem-cli", "up", "--no-open", "--forward-browser-logs", "--html-folder", "drafts"],
       "port": 3000,
       "autoPort": true
     }
