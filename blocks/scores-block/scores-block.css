@@ -55,6 +55,45 @@
   background-color: var(--color-live);
 }
 
+.scores-block .scores-block-team[role='button'] {
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.scores-block .scores-block-team[role='button']:hover,
+.scores-block .scores-block-team[role='button']:focus-visible {
+  outline: 2px solid var(--color-plus-primary);
+  outline-offset: 2px;
+}
+
+.scores-block .scores-block-team.is-preferred .scores-block-abbr::after {
+  content: ' \2605';
+  color: var(--color-plus-primary);
+}
+
+.scores-block .scores-block-toast {
+  position: fixed;
+  z-index: 1000;
+  bottom: 32px;
+  left: 50%;
+  transform: translate(-50%, 12px);
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(135deg, var(--color-plus-350), var(--color-plus-primary));
+  padding: 12px 24px;
+  color: var(--color-white);
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.scores-block .scores-block-toast.scores-block-toast-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
 .scores-block .scores-block-tile-status {
   color: var(--dark-color);
   font-size: 10px;

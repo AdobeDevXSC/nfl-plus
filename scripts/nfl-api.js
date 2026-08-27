@@ -80,14 +80,35 @@ function thumbFrom(item) {
   return url.replace('{formatInstructions}', THUMB_TX);
 }
 
+/** Content signals for client-side affinity ranking (see scripts/video-affinity.js). */
+function extractSignals(item, extra = []) {
+  const signals = [...extra];
+  // Curated "experience" shelf items nest this under `series.title` rather than the flat
+  // `seriesTitle` field the episodes/clips endpoints use — check both shapes.
+  const seriesTitle = item.seriesTitle || item.series?.title;
+  if (seriesTitle) signals.push(`series:${seriesTitle}`);
+  if (item.clipType) signals.push(`clipType:${item.clipType}`);
+  if (item.subType) signals.push(`subType:${item.subType}`);
+  if (item.callSign || item.network) signals.push(`network:${item.callSign || item.network}`);
+  if (Array.isArray(item.tags)) {
+    item.tags.forEach((t) => {
+      const tag = typeof t === 'string' ? t : (t?.name || t?.title);
+      if (tag) signals.push(`tag:${tag}`);
+    });
+  }
+  return signals;
+}
+
 /** Reduce an item from any source to the common card shape. */
-function normalize(item) {
+function normalize(item, extraSignals) {
   return {
     id: item.id,
     title: item.title || item.displayTitle || item.mobileTitle || 'Untitled',
     duration: Number(item.duration) || 0,
     thumb: thumbFrom(item),
     link: item.webLink || item.mobileLink || '',
+    entitlement: item.entitlement || null,
+    signals: extractSignals(item, extraSignals),
   };
 }
 
@@ -125,7 +146,11 @@ function flattenReplays(games, subType) {
       if (subType && replay.subType !== subType) return;
       const away = game.awayTeam?.fullName || 'Away';
       const home = game.homeTeam?.fullName || 'Home';
-      items.push({ ...replay, title: `${away} @ ${home} — ${replay.subType || 'Replay'}` });
+      items.push({
+        ...replay,
+        title: `${away} @ ${home} — ${replay.subType || 'Replay'}`,
+        matchupTeams: [away, home],
+      });
     });
   });
   return items;
@@ -157,7 +182,8 @@ async function getExperience(base, id, headers) {
  * @param {string} [opts.week]          e.g. "2" (replays)
  * @param {string} [opts.subType]       e.g. "Full Game" (replays, optional filter)
  * @param {number} [opts.limit]         max cards
- * @returns {Promise<Array<{id,title,duration,thumb,link}>>}
+ * @returns {Promise<Array<{id,title,duration,thumb,link,signals:string[],
+ *   entitlement:string|null}>>}
  */
 async function fetchVideos({
   source = 'episodes', series, clipType, network, experienceId, shelf,
@@ -175,12 +201,20 @@ async function fetchVideos({
     const populated = (n) => Array.isArray(n.data?.items) && n.data.items.length;
     let node;
     if (shelf) {
-      const needle = shelf.toLowerCase();
-      node = nodes.find((n) => populated(n)
-        && (n.displayName || n.name || '').toLowerCase().includes(needle));
+      // Shelf names carry punctuation ("NFL+ Throwback") that doesn't necessarily
+      // match how an author types it ("NFL Throwback") — compare on letters/digits
+      // only so a "+" or extra whitespace doesn't silently fall through to the
+      // wrong (first-populated) shelf below.
+      const shelfKey = (s) => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const needle = shelfKey(shelf);
+      node = nodes.find((n) => populated(n) && shelfKey(n.displayName || n.name).includes(needle));
+      if (!node) {
+        // eslint-disable-next-line no-console
+        console.warn(`video-listing: no shelf matching "${shelf}" — falling back to the first populated shelf.`);
+      }
     }
     node = node || nodes.find(populated);
-    return (node?.data.items || []).slice(0, limit).map(normalize);
+    return (node?.data.items || []).slice(0, limit).map((item) => normalize(item));
   }
 
   // weekly-game-details returns an array of games, not an items/data.items envelope.
@@ -189,7 +223,8 @@ async function fetchVideos({
       season, seasonType, week, includeReplays: true,
     });
     const items = flattenReplays(games, subType);
-    return items.slice(0, limit).map(normalize);
+    return items.slice(0, limit)
+      .map((item) => normalize(item, item.matchupTeams?.map((t) => `team:${t}`)));
   }
 
   let url;
@@ -211,7 +246,7 @@ async function fetchVideos({
   const json = await res.json();
   let items = json.items || json.data?.items || [];
   if (network) items = items.filter((i) => (i.callSign || i.network) === network);
-  return items.slice(0, limit).map(normalize);
+  return items.slice(0, limit).map((item) => normalize(item));
 }
 
 function teamAbbrFromLogo(url) {

@@ -118,6 +118,44 @@
   color: #b91c1c;
 }
 
+.video-listing .video-listing-toast {
+  position: fixed;
+  z-index: 1000;
+  bottom: 32px;
+  left: 50%;
+  transform: translate(-50%, 12px);
+  border-radius: var(--radius-2xl);
+  background: linear-gradient(135deg, var(--color-plus-350), var(--color-plus-primary));
+  padding: 12px 24px;
+  color: var(--color-white);
+  font-size: 14px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--tracking-wide);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.video-listing .video-listing-toast.video-listing-toast-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+.video-listing .video-listing-toast-upsell {
+  max-width: 90vw;
+  pointer-events: none;
+}
+
+.video-listing .video-listing-toast-upsell.video-listing-toast-visible {
+  pointer-events: auto;
+}
+
+.video-listing .video-listing-toast-upsell a {
+  margin-left: 4px;
+  color: inherit;
+  text-decoration: underline;
+}
+
 @media (width >= 600px) {
   .video-listing .video-listing-tray {
     grid-auto-columns: 300px;
