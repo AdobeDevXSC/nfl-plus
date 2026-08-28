@@ -75,12 +75,16 @@ async function getToken() {
   return tokenPromise;
 }
 
+// Some replays (seen on full-game replays) carry a .bif scrub-bar sprite sheet as
+// their "thumbnail" instead of a poster image — browsers can't decode that as an
+// <img>, so treat it as unusable rather than rendering a broken image.
+function isUsableThumbUrl(url) {
+  return !!url && !/\.bif(\?|$)/i.test(url);
+}
+
 function thumbFrom(item) {
   const url = item.thumbnail?.thumbnailUrl || '';
-  // Some replays (seen on full-game replays) carry a .bif scrub-bar sprite sheet
-  // as their "thumbnail" instead of a poster image — browsers can't decode that
-  // as an <img>, so treat it as no thumbnail rather than rendering a broken image.
-  if (/\.bif(\?|$)/i.test(url)) return '';
+  if (!isUsableThumbUrl(url)) return '';
   return url.replace('{formatInstructions}', THUMB_TX);
 }
 
@@ -150,10 +154,20 @@ function flattenReplays(games, subType, team) {
     const home = game.homeTeam?.fullName || 'Home';
     if (team && away !== team && home !== team) return;
     const replays = Array.isArray(game.replays) ? game.replays : [];
+    // Full Game/Condensed/All-22 are the same matchup, so if one lacks a usable
+    // thumbnail (see isUsableThumbUrl), borrow another replay's poster from the
+    // same game rather than showing a blank card.
+    const sharedThumbUrl = replays
+      .map((r) => r.thumbnail?.thumbnailUrl)
+      .find(isUsableThumbUrl);
     replays.forEach((replay) => {
       if (subType && replay.subType !== subType) return;
+      const thumbnail = isUsableThumbUrl(replay.thumbnail?.thumbnailUrl)
+        ? replay.thumbnail
+        : { ...replay.thumbnail, thumbnailUrl: sharedThumbUrl };
       items.push({
         ...replay,
+        thumbnail,
         title: `${away} @ ${home} — ${replay.subType || 'Replay'}`,
         matchupTeams: [away, home],
       });
