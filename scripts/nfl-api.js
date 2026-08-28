@@ -77,6 +77,10 @@ async function getToken() {
 
 function thumbFrom(item) {
   const url = item.thumbnail?.thumbnailUrl || '';
+  // Some replays (seen on full-game replays) carry a .bif scrub-bar sprite sheet
+  // as their "thumbnail" instead of a poster image — browsers can't decode that
+  // as an <img>, so treat it as no thumbnail rather than rendering a broken image.
+  if (/\.bif(\?|$)/i.test(url)) return '';
   return url.replace('{formatInstructions}', THUMB_TX);
 }
 
