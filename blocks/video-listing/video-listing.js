@@ -105,15 +105,28 @@ function personalizedFetchArgs(cfg, limit) {
 
 export default async function decorate(block) {
   const cfg = readConfig(block);
-  const personalized = personalizedFetchArgs(cfg, parseInt(cfg.limit, 10) || 12);
-  const source = personalized ? 'replays' : (cfg.source || 'episodes').toLowerCase();
   const limit = parseInt(cfg.limit, 10) || 12;
+  const editorialArgs = {
+    source: (cfg.source || 'episodes').toLowerCase(),
+    series: cfg.series,
+    clipType: cfg['clip type'],
+    network: cfg.network,
+    experienceId: cfg['experience id'],
+    shelf: cfg.shelf,
+    season: cfg.season,
+    seasonType: cfg['season type'],
+    week: cfg.week,
+    subType: cfg['sub type'],
+    limit,
+  };
+  const personalized = personalizedFetchArgs(cfg, limit);
 
   block.textContent = '';
-  block.dataset.source = source;
+  block.dataset.source = personalized ? 'replays' : editorialArgs.source;
 
+  let label;
   if (personalized) {
-    const label = document.createElement('p');
+    label = document.createElement('p');
     label.className = 'video-listing-personalized-label';
     label.textContent = `Personalized for ${personalized.team} fans`;
     block.append(label);
@@ -146,19 +159,16 @@ export default async function decorate(block) {
   block.append(tray, status);
 
   try {
-    const items = await fetchVideos(personalized || {
-      source,
-      series: cfg.series,
-      clipType: cfg['clip type'],
-      network: cfg.network,
-      experienceId: cfg['experience id'],
-      shelf: cfg.shelf,
-      season: cfg.season,
-      seasonType: cfg['season type'],
-      week: cfg.week,
-      subType: cfg['sub type'],
-      limit,
-    });
+    let items = await fetchVideos(personalized || editorialArgs);
+
+    if (personalized && !items.length) {
+      // The preferred team may not have a replay in the resolved week yet (bye week,
+      // or the game just hasn't been played/posted) — fall back to this block's
+      // normally-authored content rather than showing an empty personalized tray.
+      label?.remove();
+      block.dataset.source = editorialArgs.source;
+      items = await fetchVideos(editorialArgs);
+    }
 
     if (!items.length) {
       status.textContent = 'No videos found.';
