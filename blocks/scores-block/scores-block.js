@@ -67,7 +67,7 @@ function buildTeamRow(team, live, onPick) {
   if (team.name) {
     row.setAttribute('role', 'button');
     row.tabIndex = 0;
-    row.setAttribute('aria-label', `Set ${team.name} as your favorite team`);
+    row.setAttribute('aria-label', `See all ${team.name} games`);
     row.addEventListener('click', () => onPick(team.name));
     row.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return;
@@ -143,7 +143,7 @@ export default async function decorate(block) {
     tray.textContent = '';
     const onPick = (teamName) => {
       setPreferredTeam(teamName);
-      showToast(`Team preference saved: ${teamName}`);
+      showToast(`Now showing all ${teamName} games`);
       render(games);
     };
     sortByTeamAffinity(games).forEach((game) => tray.append(buildTile(game, onPick)));
